@@ -1,0 +1,79 @@
+gcloud auth login   ## login
+gcloud projects list    
+gcloud config set project [PROJECT_ID]    ## set project
+
+
+### api enable
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  aiplatform.googleapis.com \
+  compute.googleapis.com
+
+#make folder and write files
+cd && mkdir text_summarization && cd text_summarization
+
+cloudshell open-workspace ~/text_summarization
+
+--------------------------------
+cloudshell edit requirements.txt 
+ 
+google-adk==1.14.0
+langchain-community==0.3.27
+wikipedia==1.4.0
+--------------------------------
+
+uv venv
+source .venv/bin/activate
+
+uv pip install -r requirements.txt
+
+----------------------------------
+# 1. Set the variables in your terminal first
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
+SA_NAME=lab2-cr-service
+
+# 2. Create the .env file using those variables
+cat <<EOF > .env
+PROJECT_ID=$PROJECT_ID
+PROJECT_NUMBER=$PROJECT_NUMBER
+SA_NAME=$SA_NAME
+SERVICE_ACCOUNT=${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+MODEL="gemini-2.5-flash"
+EOF
+-----------------------------------------------------
+
+cloudshell edit __init__.py
+
+from . import agent
+
+-----------------------------------------------------
+cloudshell edit agent.py
+
+#make agent files
+----------
+
+source .env
+
+gcloud iam service-accounts create ${SA_NAME} \
+    --display-name="Service Account for lab 2 "
+
+# Grant the "Vertex AI User" role to your service account
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$SERVICE_ACCOUNT" \
+  --role="roles/aiplatform.user"
+
+
+# Run the deployment command
+uvx --from google-adk==1.14.0 \
+adk deploy cloud_run \
+  --project=$PROJECT_ID \
+  --region=europe-west1 \
+  --service_name=text-summarization \
+  --with_ui \
+  . \
+  -- \
+  --labels=dev-tutorial=codelab-adk \
+  --service-account=$SERVICE_ACCOUNT
